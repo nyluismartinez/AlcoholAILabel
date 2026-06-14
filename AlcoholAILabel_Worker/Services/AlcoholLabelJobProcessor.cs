@@ -3,6 +3,8 @@ using AlcoholAILabel_Data.Entities;
 using AlcoholAILabel_Shared.Enums;
 using AlcoholAILabel_Worker.Services.Ocr;
 using Microsoft.EntityFrameworkCore;
+using AlcoholAILabel_Worker.Services.Agent;
+using System.Text.Json;
 
 namespace AlcoholAILabel.Worker.Services;
 
@@ -12,17 +14,20 @@ public class AlcoholLabelJobProcessor
     private readonly IConfiguration _configuration;
     private readonly ILogger<AlcoholLabelJobProcessor> _logger;
     private readonly IOcrService _ocrService;
+    private readonly AlcoholLabelExtractionAgent _agent;
 
     public AlcoholLabelJobProcessor(
         AlcoholLabelDbContext dbContext,
         IConfiguration configuration,
         ILogger<AlcoholLabelJobProcessor> logger,
-        IOcrService ocrService)
+        IOcrService ocrService,
+        AlcoholLabelExtractionAgent agent)
     {
         _dbContext = dbContext;
         _configuration = configuration;
         _logger = logger;
         _ocrService = ocrService;
+        _agent = agent;
     }
 
     public async Task ProcessNextJobAsync(CancellationToken cancellationToken)
@@ -148,12 +153,41 @@ public class AlcoholLabelJobProcessor
         job.PercentComplete = 25;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var rawOcrText = await _ocrService.ExtractTextAsync(
-            job.UploadedFilePath,
-            cancellationToken);
+        var rawOcrText =
+            await _ocrService.ExtractTextAsync(
+                job.UploadedFilePath,
+                cancellationToken);
 
-        job.PercentComplete = 60;
+        job.PercentComplete = 50;
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var agentResult =
+            await _agent.ExtractAsync(
+                rawOcrText,
+                job.ProductType,
+                job.SourceProduct,
+                cancellationToken);
+
+        job.PercentComplete = 80;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var confidenceJson =
+            JsonSerializer.Serialize(
+                new
+                {
+                    usedAi = agentResult.UsedAi,
+                    brandName = agentResult.Confidence.BrandName,
+                    classTypeDesignation = agentResult.Confidence.ClassTypeDesignation,
+                    alcoholContent = agentResult.Confidence.AlcoholContent,
+                    netContents = agentResult.Confidence.NetContents,
+                    bottlerProducerNameAddress = agentResult.Confidence.BottlerProducerNameAddress,
+                    countryOfOrigin = agentResult.Confidence.CountryOfOrigin,
+                    governmentWarning = agentResult.Confidence.GovernmentWarning
+                },
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
 
         var result = new AlcoholLabelExtractionResult
         {
@@ -162,17 +196,16 @@ public class AlcoholLabelJobProcessor
 
             RawOcrText = rawOcrText,
 
-            BrandName = ExtractBrandName(rawOcrText),
-            ClassTypeDesignation = ExtractClassTypeDesignation(rawOcrText),
-            AlcoholContent = ExtractAlcoholContent(rawOcrText),
-            NetContents = ExtractNetContents(rawOcrText),
-            BottlerProducerNameAddress = ExtractBottlerProducerAddress(rawOcrText),
-            CountryOfOrigin = ExtractCountryOfOrigin(rawOcrText),
-            GovernmentWarning = ExtractGovernmentWarning(rawOcrText),
+            BrandName = agentResult.BrandName,
+            ClassTypeDesignation = agentResult.ClassTypeDesignation,
+            AlcoholContent = agentResult.AlcoholContent,
+            NetContents = agentResult.NetContents,
+            BottlerProducerNameAddress = agentResult.BottlerProducerNameAddress,
+            CountryOfOrigin = agentResult.CountryOfOrigin,
+            GovernmentWarning = agentResult.GovernmentWarning,
 
-            ConfidenceJson = CalculateSimpleConfidenceJson(rawOcrText),
-
-            NeedsHumanReview = ShouldRequireHumanReview(rawOcrText),
+            ConfidenceJson = confidenceJson,
+            NeedsHumanReview = agentResult.NeedsHumanReview,
 
             CreatedDate = DateTime.UtcNow
         };

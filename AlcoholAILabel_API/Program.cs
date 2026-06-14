@@ -1,3 +1,4 @@
+using AlcoholAILabel_API.Services.LocalAi;
 using AlcoholAILabel_Data.Database;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,29 @@ builder.Services.Configure<FormOptions>(options =>
 
 builder.Services.AddDbContext<AlcoholLabelDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+
+builder.Services.AddSingleton(sp =>
+{
+    var configuration =
+        sp.GetRequiredService<IConfiguration>();
+
+    var baseUrl =
+        configuration["LocalAiSettings:BaseUrl"];
+
+    if (string.IsNullOrWhiteSpace(baseUrl))
+    {
+        baseUrl = "http://localhost:11434";
+    }
+
+    return new HttpClient
+    {
+        BaseAddress = new Uri(baseUrl),
+        Timeout = TimeSpan.FromMinutes(3)
+    };
+});
+
+builder.Services.AddScoped<ApiLocalLlmClient>();
 
 
 

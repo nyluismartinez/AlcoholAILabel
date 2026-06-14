@@ -34,6 +34,16 @@ builder.Services.AddHttpClient<AlcoholLabelDashboardClient>(client =>
     client.BaseAddress = new Uri(apiBaseUrl);
 });
 
+builder.Services.AddHttpClient<AiTestClient>(client =>
+{
+    var apiBaseUrl = builder.Configuration["ApiBaseUrl"];
+
+    if (string.IsNullOrWhiteSpace(apiBaseUrl))
+        throw new InvalidOperationException("ApiBaseUrl is missing.");
+
+    client.BaseAddress = new Uri(apiBaseUrl);
+});
+
 
 var app = builder.Build();
 

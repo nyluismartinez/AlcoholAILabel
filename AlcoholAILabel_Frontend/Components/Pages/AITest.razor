@@ -1,0 +1,178 @@
+﻿@page "/ai-test"
+
+@rendermode InteractiveServer
+
+@using MudBlazor
+@using System.Text.Json
+
+@inject AlcoholAILabel_Frontend.Services.AiTestClient AiTestClient
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+
+    <MudText Typo="Typo.h4" Class="mb-4">
+        Local AI Test
+    </MudText>
+
+    <MudAlert Severity="Severity.Info" Class="mb-4">
+        This page tests the local AI model running through Ollama.
+        It does not process a real job. It only sends sample OCR text to the AI.
+    </MudAlert>
+
+    <MudPaper Class="pa-6 mb-5">
+
+        <MudText Typo="Typo.h6" Class="mb-3">
+            OCR Text Input
+        </MudText>
+
+        <MudTextField @bind-Value="_prompt"
+                      Label="Paste OCR text here"
+                      Variant="Variant.Outlined"
+                      Lines="12"
+                      FullWidth="true" />
+
+        <MudStack Row="true" Spacing="2" Class="mt-4">
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Disabled="@_loading"
+                       OnClick="AskAiAsync">
+
+                @if (_loading)
+                {
+                    <MudProgressCircular Size="Size.Small"
+                                         Indeterminate="true"
+                                         Class="mr-2" />
+                    <span>Asking AI...</span>
+                }
+                else
+                {
+                    <span>Ask Local AI</span>
+                }
+
+            </MudButton>
+
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Default"
+                       Disabled="@_loading"
+                       OnClick="LoadSample">
+                Load Sample
+            </MudButton>
+
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Secondary"
+                       Disabled="@_loading"
+                       OnClick="Clear">
+                Clear
+            </MudButton>
+
+        </MudStack>
+
+    </MudPaper>
+
+    @if (!string.IsNullOrWhiteSpace(_rawResponse))
+    {
+        <MudPaper Class="pa-6">
+
+            <MudText Typo="Typo.h6" Class="mb-3">
+                AI JSON Response
+            </MudText>
+
+            <MudTextField Value="@_formattedResponse"
+                          ReadOnly="true"
+                          Variant="Variant.Outlined"
+                          Lines="16"
+                          FullWidth="true" />
+
+        </MudPaper>
+    }
+
+</MudContainer>
+
+@code {
+    private string _prompt = """"
+    D0N JUL10
+    BLANC0 TEQU1LA
+    40% ALC/V0L
+    750 M1
+    PRODUCT 0F MEX1CO
+    GOVERNMENT WARNlNG: According to the Surgeon General, women should not drink alcoholic beverages during pregnancy.
+    """";
+
+    private string? _rawResponse;
+
+    private string _formattedResponse = string.Empty;
+
+    private bool _loading;
+
+    private async Task AskAiAsync()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_prompt))
+            {
+                Snackbar.Add("Please enter OCR text.", Severity.Warning);
+                return;
+            }
+
+            _loading = true;
+
+            var result = await AiTestClient.AskAsync(_prompt);
+
+            _rawResponse = result?.ResponseJson ?? string.Empty;
+
+            _formattedResponse = FormatJson(_rawResponse);
+
+            Snackbar.Add("Local AI responded successfully.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"AI test failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void LoadSample()
+    {
+        _prompt = """"
+        D0N JUL10
+        BLANC0 TEQU1LA
+        40% ALC/V0L
+        750 M1
+        PRODUCT 0F MEX1CO
+        GOVERNMENT WARNlNG: According to the Surgeon General, women should not drink alcoholic beverages during pregnancy.
+        """";
+
+        _rawResponse = null;
+        _formattedResponse = string.Empty;
+    }
+
+    private void Clear()
+    {
+        _prompt = string.Empty;
+        _rawResponse = null;
+        _formattedResponse = string.Empty;
+    }
+
+    private static string FormatJson(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+
+            return JsonSerializer.Serialize(
+                document.RootElement,
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+        }
+        catch
+        {
+            return json;
+        }
+    }
+}
