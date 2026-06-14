@@ -46,6 +46,10 @@ The controller handles the upload process. At upload time, the system creates da
 Processing does not need to happen immediately after each upload. The user can upload more than 200 records and then click Send for Processing.
 After processing is triggered, the worker pipeline begins. The worker reads pending records, loads the uploaded image, runs Tesseract OCR, and sends the extracted text to the AI layer.
 
+*NOTE: A small delay of 4 seconds has been added to some processing steps for demonstration purposes to view job status transitions and pipeline progress in the UI. This delay is implemented in the Worker Service and can be removed by commenting the delay value in the worker processing code. 
+AlcoholAILabel_Worker -> AlcoholLabelJobProcessor.cs -> method ProcessNextJobAsync()
+//await Task.Delay(TimeSpan.FromSeconds(4), cancellationToken);
+
 **OCR and AI**
 Tesseract OCR is responsible for reading text from the alcohol label image.
 The AI model is responsible for understanding the raw OCR text and converting it into structured data such as:
