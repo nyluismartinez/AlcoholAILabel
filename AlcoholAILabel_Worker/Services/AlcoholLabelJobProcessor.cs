@@ -104,6 +104,8 @@ public class AlcoholLabelJobProcessor
             job.CompletedDate = DateTime.UtcNow;
 
 
+
+
             // UPDATE WORKER
             workerStatus.Status = "Idle";
             workerStatus.CurrentJobId = null;
