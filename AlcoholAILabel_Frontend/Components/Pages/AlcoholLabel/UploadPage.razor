@@ -1,0 +1,321 @@
+﻿@page "/alcohol-label-upload"
+@rendermode InteractiveServer
+
+@using AlcoholAILabel_Shared.Dtos
+@using AlcoholAILabel_Shared.Enums
+@using Microsoft.AspNetCore.Components.Forms
+@using MudBlazor
+
+@inject AlcoholAILabel_Frontend.Services.AlcoholLabelJobClient JobClient
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
+
+    <MudText Typo="Typo.h4" Class="mb-4">
+        Alcohol Label Upload
+    </MudText>
+
+    <MudPaper Class="pa-6 mb-6">
+
+        <MudText Typo="Typo.h6" Class="mb-4">
+            Upload Label
+        </MudText>
+
+        <MudGrid>
+
+            <MudItem xs="12" md="4">
+                <MudTextField @bind-Value="_productName"
+                              Label="Product Name"
+                              Variant="Variant.Outlined"
+                              FullWidth="true" />
+            </MudItem>
+
+            <MudItem xs="12" md="4">
+                <MudSelect T="AlcoholProductType"
+                           @bind-Value="_productType"
+                           Label="Product Type"
+                           Variant="Variant.Outlined"
+                           FullWidth="true">
+
+                    <MudSelectItem Value="AlcoholProductType.Wine">Wine</MudSelectItem>
+                    <MudSelectItem Value="AlcoholProductType.DistilledSpirit">Distilled Spirit</MudSelectItem>
+                    <MudSelectItem Value="AlcoholProductType.MaltBeverage">Malt Beverage</MudSelectItem>
+
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" md="4">
+                <MudSelect T="SourceProduct"
+                           @bind-Value="_sourceProduct"
+                           Label="Source Product"
+                           Variant="Variant.Outlined"
+                           FullWidth="true">
+
+                    <MudSelectItem Value="SourceProduct.Domestic">Domestic</MudSelectItem>
+                    <MudSelectItem Value="SourceProduct.Imported">Imported</MudSelectItem>
+
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudPaper Variant="Variant.Outlined" Class="pa-4">
+
+                    <MudText Typo="Typo.subtitle1" Class="mb-2">
+                        Select Image
+                    </MudText>
+
+                    <InputFile OnChange="OnFileSelected"
+                               accept=".jpg,.jpeg,.png,.bmp,.tif,.tiff,.webp" />
+
+                    @if (_selectedFile is not null)
+                    {
+                        <MudAlert Severity="Severity.Info" Class="mt-3">
+                            Selected file: @_selectedFile.Name
+                        </MudAlert>
+                    }
+
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Disabled="@_uploading"
+                           OnClick="UploadOnlyAsync">
+
+                    @if (_uploading)
+                    {
+                        <MudProgressCircular Size="Size.Small"
+                                             Indeterminate="true"
+                                             Class="mr-2" />
+                        <span>Uploading...</span>
+                    }
+                    else
+                    {
+                        <span>Upload Only</span>
+                    }
+
+                </MudButton>
+            </MudItem>
+
+        </MudGrid>
+
+    </MudPaper>
+
+    <MudPaper Class="pa-6">
+
+        <MudStack Row="true"
+                  AlignItems="AlignItems.Center"
+                  Justify="Justify.SpaceBetween"
+                  Class="mb-4">
+
+            <MudText Typo="Typo.h6">
+                Uploaded Labels Waiting for Processing
+            </MudText>
+
+            <MudStack Row="true" Spacing="2">
+
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Default"
+                           Disabled="@_loadingTable"
+                           OnClick="LoadUploadedJobsAsync">
+                    Refresh
+                </MudButton>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Success"
+                           Disabled="@(!_uploadedJobs.Any() || _sending)"
+                           OnClick="SendAllForProcessingAsync">
+
+                    @if (_sending)
+                    {
+                        <MudProgressCircular Size="Size.Small"
+                                             Indeterminate="true"
+                                             Class="mr-2" />
+                        <span>Sending...</span>
+                    }
+                    else
+                    {
+                        <span>Send for Processing</span>
+                    }
+
+                </MudButton>
+
+            </MudStack>
+
+        </MudStack>
+
+        @if (_loadingTable)
+        {
+            <MudProgressLinear Indeterminate="true" Class="mb-4" />
+        }
+
+        <MudTable Items="@_uploadedJobs"
+                  Dense="true"
+                  Hover="true"
+                  Bordered="true"
+                  RowsPerPage="10">
+
+            <HeaderContent>
+                <MudTh>Product Name</MudTh>
+                <MudTh>Type</MudTh>
+                <MudTh>Source</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Created</MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <MudTd DataLabel="Product Name">@context.ProductName</MudTd>
+                <MudTd DataLabel="Type">@context.ProductType</MudTd>
+                <MudTd DataLabel="Source">@context.SourceProduct</MudTd>
+
+                <MudTd DataLabel="Status">
+                    <MudChip T="string"
+                             Color="Color.Info"
+                             Variant="Variant.Filled">
+                        @context.Status
+                    </MudChip>
+                </MudTd>
+
+                <MudTd DataLabel="Created">
+                    @context.CreatedDate.ToString("yyyy-MM-dd HH:mm:ss")
+                </MudTd>
+            </RowTemplate>
+
+            <PagerContent>
+                <MudTablePager />
+            </PagerContent>
+
+            <NoRecordsContent>
+                <MudText>No uploaded labels waiting for processing.</MudText>
+            </NoRecordsContent>
+
+        </MudTable>
+
+    </MudPaper>
+
+</MudContainer>
+
+@code {
+    private string _productName = string.Empty;
+
+    private AlcoholProductType _productType = AlcoholProductType.Wine;
+
+    private SourceProduct _sourceProduct = SourceProduct.Domestic;
+
+    private IBrowserFile? _selectedFile;
+
+    private List<RecentAlcoholLabelJobDto> _uploadedJobs = new();
+
+    private bool _uploading;
+
+    private bool _loadingTable;
+
+    private bool _sending;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUploadedJobsAsync();
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _selectedFile = e.File;
+    }
+
+    private async Task UploadOnlyAsync()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_productName))
+            {
+                Snackbar.Add("Product name is required.", Severity.Warning);
+                return;
+            }
+
+            if (_selectedFile is null)
+            {
+                Snackbar.Add("Please select a label image.", Severity.Warning);
+                return;
+            }
+
+            _uploading = true;
+
+            var result = await JobClient.UploadAsync(
+                _productName,
+                _productType,
+                _sourceProduct,
+                _selectedFile);
+
+            Snackbar.Add(
+                $"Uploaded successfully. Job Id: {result?.JobId}",
+                Severity.Success);
+
+            _productName = string.Empty;
+            _selectedFile = null;
+
+            await LoadUploadedJobsAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Upload failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private async Task LoadUploadedJobsAsync()
+    {
+        try
+        {
+            _loadingTable = true;
+
+            _uploadedJobs = await JobClient.GetUploadedJobsAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load uploaded jobs: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loadingTable = false;
+        }
+    }
+
+    private async Task SendAllForProcessingAsync()
+    {
+        try
+        {
+            if (!_uploadedJobs.Any())
+            {
+                Snackbar.Add("There are no uploaded jobs to send.", Severity.Info);
+                return;
+            }
+
+            _sending = true;
+
+            var jobIds = _uploadedJobs
+                .Select(x => x.Id)
+                .ToList();
+
+            await JobClient.SendForProcessingAsync(jobIds);
+
+            Snackbar.Add("Jobs sent for processing.", Severity.Success);
+
+            await LoadUploadedJobsAsync();
+
+            NavigationManager.NavigateTo("/alcohol-label-dashboard");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to send jobs: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _sending = false;
+        }
+    }
+}

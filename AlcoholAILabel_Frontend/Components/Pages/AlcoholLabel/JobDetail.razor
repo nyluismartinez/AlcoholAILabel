@@ -1,0 +1,519 @@
+﻿@page "/alcohol-label-job/{JobId:guid}"
+@rendermode InteractiveServer
+
+@using AlcoholAILabel_Shared.Dtos
+@using MudBlazor
+
+@inject AlcoholAILabel_Frontend.Services.AlcoholLabelJobClient JobClient
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
+
+    <MudStack Row="true"
+              AlignItems="AlignItems.Center"
+              Justify="Justify.SpaceBetween"
+              Class="mb-4">
+
+        <MudText Typo="Typo.h4">
+            Alcohol Label Job Details
+        </MudText>
+
+        <MudStack Row="true" Spacing="2">
+
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Default"
+                       OnClick="GoBack">
+
+                Back to Dashboard
+
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Disabled="@_loading"
+                       OnClick="LoadJobAsync">
+
+                Refresh
+
+            </MudButton>
+
+        </MudStack>
+
+    </MudStack>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true"
+                           Class="mb-4" />
+    }
+
+    @if (_job is null && !_loading)
+    {
+        <MudAlert Severity="Severity.Warning">
+
+            Job was not found.
+
+        </MudAlert>
+    }
+
+    @if (_job is not null)
+    {
+        <MudGrid Class="mb-5">
+
+            <MudItem xs="12" md="4">
+
+                <MudPaper Class="pa-4">
+
+                    <MudText Typo="Typo.subtitle2">
+                        Job Status
+                    </MudText>
+
+                    <MudChip T="string"
+                             Color="@GetJobStatusColor(_job.Status)"
+                             Variant="Variant.Filled"
+                             Class="mt-2">
+
+                        @_job.Status
+
+                    </MudChip>
+
+                    <MudProgressLinear Value="@_job.PercentComplete"
+                                       Color="@GetProgressColor(_job.Status)"
+                                       Class="mt-4" />
+
+                    <MudText Typo="Typo.caption">
+
+                        @_job.PercentComplete%
+
+                    </MudText>
+
+                </MudPaper>
+
+            </MudItem>
+
+            <MudItem xs="12" md="4">
+
+                <MudPaper Class="pa-4">
+
+                    <MudText Typo="Typo.subtitle2">
+
+                        Product
+
+                    </MudText>
+
+                    <MudText Typo="Typo.h6">
+
+                        @_job.ProductName
+
+                    </MudText>
+
+                    <MudText>
+
+                        Type: @_job.ProductType
+
+                    </MudText>
+
+                    <MudText>
+
+                        Source: @_job.SourceProduct
+
+                    </MudText>
+
+                </MudPaper>
+
+            </MudItem>
+
+            <MudItem xs="12" md="4">
+
+                <MudPaper Class="pa-4">
+
+                    <MudText Typo="Typo.subtitle2">
+
+                        Dates
+
+                    </MudText>
+
+                    <MudText>
+
+                        Created:
+                        @_job.CreatedDate.ToString("yyyy-MM-dd HH:mm:ss")
+
+                    </MudText>
+
+                    <MudText>
+
+                        Started:
+                        @(_job.StartedDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")
+
+                    </MudText>
+
+                    <MudText>
+
+                        Completed:
+                        @(_job.CompletedDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")
+
+                    </MudText>
+
+                </MudPaper>
+
+            </MudItem>
+
+        </MudGrid>
+
+        @if (!string.IsNullOrWhiteSpace(_job.ErrorMessage))
+        {
+            <MudAlert Severity="Severity.Error"
+                      Class="mb-5">
+
+                @_job.ErrorMessage
+
+            </MudAlert>
+        }
+
+        <!-- Uploaded File -->
+
+        <MudPaper Class="pa-4 mb-5">
+
+            <MudText Typo="Typo.h6"
+                     Class="mb-3">
+
+                Uploaded File
+
+            </MudText>
+
+            <MudTextField Value="@_job.UploadedFilePath"
+                          Label="Uploaded File Path"
+                          ReadOnly="true"
+                          Variant="Variant.Outlined"
+                          FullWidth="true" />
+
+        </MudPaper>
+
+        @if (_job.ExtractionResult is not null)
+        {
+            <!-- RAW OCR TEXT -->
+
+            <MudPaper Class="pa-4 mb-5">
+
+                <MudText Typo="Typo.h6" Class="mb-3">
+                    Raw OCR Text
+                </MudText>
+
+                <MudTextField Value="@_job.ExtractionResult.RawOcrText"
+                              ReadOnly="true"
+                              Variant="Variant.Outlined"
+                              Lines="10"
+                              FullWidth="true" />
+
+            </MudPaper>
+        }
+
+        @if (_job.ExtractionResult is null)
+        {
+            <MudAlert Severity="Severity.Info">
+
+                Extraction result is not available yet.
+
+            </MudAlert>
+        }
+        else
+        {
+            <!-- HUMAN REVIEW -->
+
+            <MudPaper Class="pa-4 mb-5">
+
+                <MudStack Row="true"
+                          AlignItems="AlignItems.Center"
+                          Justify="Justify.SpaceBetween"
+                          Class="mb-3">
+
+                    <MudText Typo="Typo.h6">
+
+                        Human Review
+
+                    </MudText>
+
+                    @if (_job.ExtractionResult.NeedsHumanReview)
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Warning"
+                                 Variant="Variant.Filled">
+
+                            Needs Human Review
+
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Success"
+                                 Variant="Variant.Filled">
+
+                            Approved
+
+                        </MudChip>
+                    }
+
+                </MudStack>
+
+                <MudAlert Severity="Severity.Info"
+                          Class="mb-4">
+
+                    Review the extracted values below.
+                    Correct anything wrong, then click Approve Result.
+
+                </MudAlert>
+
+                <MudGrid>
+
+                    <MudItem xs="12" md="6">
+
+                        <MudTextField @bind-Value="_review.BrandName"
+                                      Label="Brand Name"
+                                      Variant="Variant.Outlined"
+                                      FullWidth="true" />
+
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+
+                        <MudTextField @bind-Value="_review.ClassTypeDesignation"
+                                      Label="Class / Type Designation"
+                                      Variant="Variant.Outlined"
+                                      FullWidth="true" />
+
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+
+                        <MudTextField @bind-Value="_review.AlcoholContent"
+                                      Label="Alcohol Content"
+                                      Variant="Variant.Outlined"
+                                      FullWidth="true" />
+
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+
+                        <MudTextField @bind-Value="_review.NetContents"
+                                      Label="Net Contents"
+                                      Variant="Variant.Outlined"
+                                      FullWidth="true" />
+
+                    </MudItem>
+
+                    <MudItem xs="12">
+
+                        <MudTextField @bind-Value="_review.BottlerProducerNameAddress"
+                                      Label="Bottler / Producer Name and Address"
+                                      Variant="Variant.Outlined"
+                                      Lines="3"
+                                      FullWidth="true" />
+
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+
+                        <MudTextField @bind-Value="_review.CountryOfOrigin"
+                                      Label="Country Of Origin"
+                                      Variant="Variant.Outlined"
+                                      FullWidth="true" />
+
+                    </MudItem>
+
+                    <MudItem xs="12">
+
+                        <MudTextField @bind-Value="_review.GovernmentWarning"
+                                      Label="Government Warning"
+                                      Variant="Variant.Outlined"
+                                      Lines="4"
+                                      FullWidth="true" />
+
+                    </MudItem>
+
+                </MudGrid>
+
+                <MudDivider Class="my-4" />
+
+                <MudStack Row="true"
+                          Spacing="2">
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Success"
+                               Disabled="@_saving"
+                               OnClick="ApproveResultAsync">
+
+                        Approve Result
+
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Warning"
+                               Disabled="@_saving"
+                               OnClick="SaveAsNeedsReviewAsync">
+
+                        Save As Needs Review
+
+                    </MudButton>
+
+                </MudStack>
+
+            </MudPaper>
+
+            <!-- CONFIDENCE JSON -->
+
+            <MudPaper Class="pa-4">
+
+                <MudText Typo="Typo.h6"
+                         Class="mb-3">
+
+                    Confidence JSON
+
+                </MudText>
+
+                <MudTextField Value="@_job.ExtractionResult.ConfidenceJson"
+                              ReadOnly="true"
+                              Variant="Variant.Outlined"
+                              Lines="10"
+                              FullWidth="true" />
+
+            </MudPaper>
+        }
+
+    }
+
+</MudContainer>
+
+@code {
+
+    [Parameter]
+    public Guid JobId { get; set; }
+
+    private AlcoholLabelJobDetailsDto? _job;
+
+    private UpdateAlcoholLabelReviewRequest _review = new();
+
+    private bool _loading = true;
+
+    private bool _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadJobAsync();
+    }
+
+    private async Task LoadJobAsync()
+    {
+        try
+        {
+            _loading = true;
+
+            _job = await JobClient.GetByIdAsync(JobId);
+
+            LoadReviewModel();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(
+                $"Failed to load job: {ex.Message}",
+                Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void LoadReviewModel()
+    {
+        if (_job?.ExtractionResult is null)
+            return;
+
+        _review = new UpdateAlcoholLabelReviewRequest
+        {
+            BrandName = _job.ExtractionResult.BrandName,
+            ClassTypeDesignation = _job.ExtractionResult.ClassTypeDesignation,
+            AlcoholContent = _job.ExtractionResult.AlcoholContent,
+            NetContents = _job.ExtractionResult.NetContents,
+            BottlerProducerNameAddress = _job.ExtractionResult.BottlerProducerNameAddress,
+            CountryOfOrigin = _job.ExtractionResult.CountryOfOrigin,
+            GovernmentWarning = _job.ExtractionResult.GovernmentWarning,
+            Approve = false
+        };
+    }
+
+    private async Task ApproveResultAsync()
+    {
+        await SaveReviewAsync(true);
+    }
+
+    private async Task SaveAsNeedsReviewAsync()
+    {
+        await SaveReviewAsync(false);
+    }
+
+    private async Task SaveReviewAsync(bool approve)
+    {
+        try
+        {
+            _saving = true;
+
+            _review.Approve = approve;
+
+            _job = await JobClient.UpdateReviewAsync(
+                JobId,
+                _review);
+
+            LoadReviewModel();
+
+            Snackbar.Add(
+                approve
+                    ? "Result approved successfully."
+                    : "Saved as Needs Review.",
+                approve
+                    ? Severity.Success
+                    : Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(
+                $"Failed to save review: {ex.Message}",
+                Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/alcohol-label-dashboard");
+    }
+
+    private static Color GetJobStatusColor(string status)
+    {
+        return status switch
+        {
+            "Queued" => Color.Info,
+            "Processing" => Color.Warning,
+            "Completed" => Color.Success,
+            "Failed" => Color.Error,
+            "NeedsHumanReview" => Color.Warning,
+            _ => Color.Default
+        };
+    }
+
+    private static Color GetProgressColor(string status)
+    {
+        return status switch
+        {
+            "Completed" => Color.Success,
+            "Failed" => Color.Error,
+            "Processing" => Color.Warning,
+            _ => Color.Info
+        };
+    }
+
+}

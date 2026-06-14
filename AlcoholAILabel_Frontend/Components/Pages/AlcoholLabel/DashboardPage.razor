@@ -1,0 +1,331 @@
+﻿@page "/alcohol-label-dashboard"
+@rendermode InteractiveServer
+@implements IDisposable
+
+@using AlcoholAILabel_Shared.Dtos
+@using MudBlazor
+@inject AlcoholAILabel_Frontend.Services.AlcoholLabelDashboardClient DashboardClient
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
+
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+        <MudText Typo="Typo.h4">
+            Alcohol Label Controller Dashboard
+        </MudText>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Disabled="@_loading"
+                   OnClick="LoadDashboardAsync">
+            Refresh
+        </MudButton>
+    </MudStack>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Class="mb-4" />
+    }
+
+    @if (_dashboard is null)
+    {
+        <MudAlert Severity="Severity.Info">
+            Loading dashboard...
+        </MudAlert>
+    }
+    else
+    {
+        <MudGrid Class="mb-5">
+
+            <MudItem xs="12" sm="6" md="2">
+                <MudPaper Class="pa-4">
+                    <MudText Typo="Typo.subtitle2">Total Jobs</MudText>
+                    <MudText Typo="Typo.h4">@_dashboard.JobStats.TotalJobs</MudText>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="2">
+                <MudPaper Class="pa-4">
+                    <MudText Typo="Typo.subtitle2">Queued</MudText>
+                    <MudText Typo="Typo.h4">@_dashboard.JobStats.Queued</MudText>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="2">
+                <MudPaper Class="pa-4">
+                    <MudText Typo="Typo.subtitle2">Processing</MudText>
+                    <MudText Typo="Typo.h4">@_dashboard.JobStats.Processing</MudText>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="2">
+                <MudPaper Class="pa-4">
+                    <MudText Typo="Typo.subtitle2">Completed</MudText>
+                    <MudText Typo="Typo.h4">@_dashboard.JobStats.Completed</MudText>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="2">
+                <MudPaper Class="pa-4">
+                    <MudText Typo="Typo.subtitle2">Failed</MudText>
+                    <MudText Typo="Typo.h4">@_dashboard.JobStats.Failed</MudText>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="2">
+                <MudPaper Class="pa-4">
+                    <MudText Typo="Typo.subtitle2">Needs Review</MudText>
+                    <MudText Typo="Typo.h4">@_dashboard.JobStats.NeedsReview</MudText>
+                </MudPaper>
+            </MudItem>
+
+        </MudGrid>
+
+        <MudPaper Class="pa-4 mb-5">
+            <MudText Typo="Typo.h6" Class="mb-3">
+                Worker Statistics
+            </MudText>
+
+            <MudTable Items="@_dashboard.Workers" Dense="true" Hover="true" Bordered="true">
+                <HeaderContent>
+                    <MudTh>Worker Name</MudTh>
+                    <MudTh>Machine</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Current Job</MudTh>
+                    <MudTh>Files Processing</MudTh>
+                    <MudTh>Total Jobs Processed</MudTh>
+                    <MudTh>Last Heartbeat UTC</MudTh>
+                </HeaderContent>
+
+                <RowTemplate>
+                    <MudTd DataLabel="Worker Name">@context.WorkerName</MudTd>
+                    <MudTd DataLabel="Machine">@context.MachineName</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string"
+                                 Color="@GetWorkerStatusColor(context.Status)"
+                                 Variant="Variant.Filled">
+                            @context.Status
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Current Job">
+                        @(context.CurrentJobId?.ToString() ?? "-")
+                    </MudTd>
+                    <MudTd DataLabel="Files Processing">@context.FilesProcessing</MudTd>
+                    <MudTd DataLabel="Total Jobs Processed">@context.TotalJobsProcessed</MudTd>
+                    <MudTd DataLabel="Last Heartbeat UTC">
+                        @context.LastHeartbeatUtc.ToString("yyyy-MM-dd HH:mm:ss")
+                    </MudTd>
+                </RowTemplate>
+
+                <NoRecordsContent>
+                    <MudText>No workers found.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+
+        <MudPaper Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">
+                Recent Jobs
+            </MudText>
+
+            <MudTable Items="@_dashboard.RecentJobs"
+                      Dense="true"
+                      Hover="true"
+                      Bordered="true"
+                      RowsPerPage="10">
+
+                <HeaderContent>
+                    <MudTh>Product Name</MudTh>
+                    <MudTh>Type</MudTh>
+                    <MudTh>Source</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Percent</MudTh>
+                    <MudTh>Needs Review</MudTh>
+                    <MudTh>Created</MudTh>
+                    <MudTh>Completed</MudTh>
+                    <MudTh>Error</MudTh>
+                    <MudTh>Action</MudTh>
+                </HeaderContent>
+
+                <RowTemplate>
+                    <MudTd DataLabel="Product Name">@context.ProductName</MudTd>
+                    <MudTd DataLabel="Type">@context.ProductType</MudTd>
+                    <MudTd DataLabel="Source">@context.SourceProduct</MudTd>
+
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string"
+                                 Color="@GetJobStatusColor(context.Status)"
+                                 Variant="Variant.Filled">
+                            @context.Status
+                        </MudChip>
+                    </MudTd>
+
+                    <MudTd DataLabel="Percent">
+                        <MudProgressLinear Value="@context.PercentComplete"
+                                           Color="@GetProgressColor(context.Status)" />
+                        <MudText Typo="Typo.caption">
+                            @context.PercentComplete%
+                        </MudText>
+                    </MudTd>
+
+                    <MudTd DataLabel="Needs Review">
+                        @if (context.NeedsHumanReview)
+                        {
+                            <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled">
+                                Yes
+                            </MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Success" Variant="Variant.Outlined">
+                                No
+                            </MudChip>
+                        }
+                    </MudTd>
+
+                    <MudTd DataLabel="Created">
+                        @context.CreatedDate.ToString("yyyy-MM-dd HH:mm:ss")
+                    </MudTd>
+
+                    <MudTd DataLabel="Completed">
+                        @(context.CompletedDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")
+                    </MudTd>
+
+                    <MudTd DataLabel="Error">
+                        @(string.IsNullOrWhiteSpace(context.ErrorMessage) ? "-" : context.ErrorMessage)
+                    </MudTd>
+
+                    <MudTd DataLabel="Action">
+                        <MudButton Size="Size.Small"
+                                   Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   OnClick="@(() => OpenJob(context.Id))">
+                            View
+                        </MudButton>
+                    </MudTd>
+                </RowTemplate>
+
+                <PagerContent>
+                    <MudTablePager />
+                </PagerContent>
+
+                <NoRecordsContent>
+                    <MudText>No jobs found.</MudText>
+                </NoRecordsContent>
+
+            </MudTable>
+        </MudPaper>
+    }
+
+</MudContainer>
+
+@code {
+    private AlcoholLabelDashboardDto? _dashboard;
+
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardAsync();
+
+        _timerCancellationTokenSource = new CancellationTokenSource();
+
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(3));
+
+        _ = AutoRefreshDashboardAsync(_timerCancellationTokenSource.Token);
+    }
+
+    private async Task LoadDashboardAsync()
+    {
+        try
+        {
+            _loading = true;
+
+            _dashboard = await DashboardClient.GetDashboardAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load dashboard: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+
+    private static Color GetJobStatusColor(string status)
+    {
+        return status switch
+        {
+            "Uploaded" => Color.Info,
+            "Queued" => Color.Secondary,
+            "Processing" => Color.Warning,
+            "Completed" => Color.Success,
+            "Failed" => Color.Error,
+            "NeedsHumanReview" => Color.Warning,
+            _ => Color.Default
+        };
+    }
+
+    private static Color GetWorkerStatusColor(string status)
+    {
+        return status switch
+        {
+            "Idle" => Color.Success,
+            "Processing" => Color.Warning,
+            "Offline" => Color.Error,
+            _ => Color.Default
+        };
+    }
+
+    private static Color GetProgressColor(string status)
+    {
+        return status switch
+        {
+            "Completed" => Color.Success,
+            "Failed" => Color.Error,
+            "Processing" => Color.Warning,
+            _ => Color.Info
+        };
+    }
+
+    private void OpenJob(Guid jobId)
+    {
+        NavigationManager.NavigateTo($"/alcohol-label-job/{jobId}");
+    }
+
+
+
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _timerCancellationTokenSource;
+    private async Task AutoRefreshDashboardAsync(CancellationToken cancellationToken)
+    {
+        if (_timer is null)
+            return;
+
+        try
+        {
+            while (await _timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(async () =>
+                {
+                    await LoadDashboardAsync();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    public void Dispose()
+    {
+        _timerCancellationTokenSource?.Cancel();
+        _timerCancellationTokenSource?.Dispose();
+        _timer?.Dispose();
+    }
+}

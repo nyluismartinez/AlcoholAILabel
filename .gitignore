@@ -1,0 +1,13 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Build folders
+bin/
+obj/
+
+# Ignore OCR native project
+/AlcoholAILabel_Shared/
+/AlcoholAILabel_OcrNative/
+/AlcoholAILabel_Data/
